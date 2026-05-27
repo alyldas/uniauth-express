@@ -6,7 +6,7 @@ import {
   REQUEST_CANNOT_BE_COMPLETED_MESSAGE,
   createUniAuthExpressRouter,
   type UniAuthExpressService,
-} from "../src/index.js";
+} from "../../src/index.js";
 
 const servers: Server[] = [];
 
