@@ -114,6 +114,42 @@ describe("UniAuth Express router", () => {
     });
   });
 
+  it("uses secure cookie defaults when cookie transport is enabled without options", async () => {
+    const app = createTestApp({
+      auth: createAuthService({
+        signIn: vi.fn(() =>
+          Promise.resolve({
+            user: { id: "user-1" },
+            identity: { id: "identity-1" },
+            session: { id: "session-record" },
+            sessionToken: "new-session-token",
+            isNewUser: false,
+            isNewIdentity: false,
+          }),
+        ),
+      }),
+      session: {
+        cookie: {},
+      },
+    });
+
+    const response = await request(app, "/auth/password/sign-in", {
+      method: "POST",
+      body: {
+        email: "demo@example.com",
+        password: "demo-password",
+      },
+    });
+
+    const setCookie = response.headers.get("set-cookie");
+
+    expect(response.status).toBe(200);
+    expect(setCookie).toContain("session=new-session-token");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("Path=/");
+    expect(setCookie).toContain("SameSite=Lax");
+  });
+
   it("maps validation failures to neutral public request errors", async () => {
     const app = createTestApp({
       auth: createAuthService(),

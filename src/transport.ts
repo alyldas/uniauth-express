@@ -1,10 +1,15 @@
-import type { Request, Response } from "express";
+import type { CookieOptions, Request, Response } from "express";
 import type {
   UniAuthSessionCookieOptions,
   UniAuthSessionTransportOptions,
 } from "./types.js";
 
 const DEFAULT_SESSION_COOKIE_NAME = "session";
+const DEFAULT_SESSION_COOKIE_OPTIONS: CookieOptions = {
+  httpOnly: true,
+  path: "/",
+  sameSite: "lax",
+};
 
 export function readBearerToken(
   header: string | undefined,
@@ -125,5 +130,9 @@ function normalizeCookieOptions(
   return {
     ...input,
     name: input?.name ?? DEFAULT_SESSION_COOKIE_NAME,
+    options: {
+      ...DEFAULT_SESSION_COOKIE_OPTIONS,
+      ...(input?.options ?? {}),
+    },
   };
 }
