@@ -20,6 +20,10 @@ vitest-report/
 package-lock.json
 *.tgz
 
+# Release Please generated files
+CHANGELOG.md
+.release-please-manifest.json
+
 # Logs
 logs/
 
