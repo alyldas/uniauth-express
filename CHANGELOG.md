@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/alyldas/uniauth-express/compare/uniauth-express-v0.1.0...uniauth-express-v0.1.1) (2026-05-28)
+
+
+### Bug Fixes
+
+* hid internal session fields from responses ([#5](https://github.com/alyldas/uniauth-express/issues/5)) ([2b38ecc](https://github.com/alyldas/uniauth-express/commit/2b38ecc624f4b8d5a638a5aae8cf27be5635e4dc))
+
 ## 0.1.0 (2026-05-27)
 
 
