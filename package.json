@@ -1,6 +1,6 @@
 {
   "name": "@alyldas/uniauth-express",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Express routes and middleware for UniAuth.",
   "type": "module",
   "engines": {
