@@ -1,7 +1,12 @@
 import type {
+  ResolvedSessionContext,
   IdentityId,
   SessionId,
   VerificationId,
+} from "@alyldas/uniauth-core";
+import {
+  toAccountSecuritySessionView,
+  toAccountSecurityUserView,
 } from "@alyldas/uniauth-core";
 import { Router } from "express";
 import { asyncHandler, requireUniAuthSession } from "../middleware.js";
@@ -29,10 +34,7 @@ export function createUniAuthAccountRouter(
   router.use(requireUniAuthSession);
 
   router.get("/session", (request, response) => {
-    response.status(200).json({
-      session: request.auth?.session,
-      user: request.auth?.user,
-    });
+    response.status(200).json(toAccountSessionResponse(request.auth!));
   });
 
   router.post(
@@ -44,7 +46,7 @@ export function createUniAuthAccountRouter(
         touch: true,
       });
 
-      response.status(200).json(result);
+      response.status(200).json(toAccountSessionResponse(result));
     }),
   );
 
@@ -497,6 +499,16 @@ function readQueryNumber(input: unknown): number | undefined {
   const value = Number(input);
 
   return Number.isFinite(value) ? value : undefined;
+}
+
+function toAccountSessionResponse(context: ResolvedSessionContext): {
+  readonly session: ReturnType<typeof toAccountSecuritySessionView>;
+  readonly user: ReturnType<typeof toAccountSecurityUserView>;
+} {
+  return {
+    session: toAccountSecuritySessionView(context.session),
+    user: toAccountSecurityUserView(context.user),
+  };
 }
 
 function readOptionalStringOrNull(

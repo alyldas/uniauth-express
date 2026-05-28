@@ -38,13 +38,21 @@ describe("UniAuth Express router", () => {
           userId: "user-1",
           status: "active",
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
-          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+          expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+          lastSeenAt: new Date("2026-01-01T00:00:00.000Z"),
+          metadata: {
+            providerAccessToken: "provider-token",
+          },
         },
         user: {
           id: "user-1",
           status: "active",
+          passwordHash: "password-hash",
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
           updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+          metadata: {
+            internal: true,
+          },
         },
         sessionToken,
       }),
@@ -66,6 +74,7 @@ describe("UniAuth Express router", () => {
     });
 
     expect(response.status).toBe(200);
+    await expectSafeSessionResponse(response);
     expect(context).toHaveBeenCalledWith({ sessionToken: "bearer-token" });
   });
 
@@ -182,6 +191,66 @@ describe("UniAuth Express router", () => {
     });
   });
 
+  it("returns the current account session with a safe cookie transport response", async () => {
+    const context = vi.fn(({ sessionToken }: { sessionToken: string }) =>
+      Promise.resolve({
+        session: {
+          id: "cookie-session",
+          tokenHash: "cookie-hash",
+          userId: "user-1",
+          status: "active",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+          metadata: {
+            providerRefreshToken: "provider-refresh-token",
+          },
+        },
+        user: {
+          id: "user-1",
+          email: "demo@example.com",
+          status: "active",
+          secretHash: "secret-hash",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        sessionToken,
+      }),
+    );
+    const app = createTestApp({
+      auth: createAuthService({ context }),
+      session: {
+        cookie: {
+          decode: (value) => `cookie:${value}`,
+        },
+      },
+    });
+
+    const response = await request(app, "/auth/account/session", {
+      headers: {
+        cookie: "session=cookie-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      session: {
+        id: "cookie-session",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        expiresAt: "2026-01-02T00:00:00.000Z",
+      },
+      user: {
+        id: "user-1",
+        email: "demo@example.com",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    expect(context).toHaveBeenCalledWith({
+      sessionToken: "cookie:cookie-token",
+    });
+  });
+
   it("refreshes the current account session context", async () => {
     const context = vi.fn(
       ({
@@ -198,13 +267,21 @@ describe("UniAuth Express router", () => {
             userId: "user-1",
             status: "active",
             createdAt: new Date("2026-01-01T00:00:00.000Z"),
-            updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+            expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+            lastSeenAt: new Date("2026-01-01T00:00:00.000Z"),
+            metadata: {
+              providerPayload: { accessToken: "provider-token" },
+            },
           },
           user: {
             id: "user-1",
             status: "active",
+            passwordHash: "password-hash",
             createdAt: new Date("2026-01-01T00:00:00.000Z"),
             updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+            metadata: {
+              internal: true,
+            },
           },
           sessionToken,
         }),
@@ -221,9 +298,19 @@ describe("UniAuth Express router", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      session: { id: "refreshed-session" },
-      user: { id: "user-1" },
+    expect(await response.json()).toEqual({
+      session: {
+        id: "refreshed-session",
+        status: "active",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        expiresAt: "2026-01-02T00:00:00.000Z",
+        lastSeenAt: "2026-01-01T00:00:00.000Z",
+      },
+      user: {
+        id: "user-1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
     });
     expect(context).toHaveBeenNthCalledWith(1, {
       sessionToken: "bearer-token",
@@ -231,6 +318,53 @@ describe("UniAuth Express router", () => {
     expect(context).toHaveBeenNthCalledWith(2, {
       sessionToken: "bearer-token",
       touch: true,
+    });
+  });
+
+  it("revokes the current account session and clears the cookie", async () => {
+    const context = vi.fn(({ sessionToken }: { sessionToken: string }) =>
+      Promise.resolve({
+        session: {
+          id: "session-record",
+          tokenHash: "hash",
+          userId: "user-1",
+          status: "active",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          expiresAt: new Date("2026-01-02T00:00:00.000Z"),
+        },
+        user: {
+          id: "user-1",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        sessionToken,
+      }),
+    );
+    const revokeCurrent = vi.fn(() => Promise.resolve());
+    const app = createTestApp({
+      auth: createAuthService({ context, revokeCurrent }),
+      session: {
+        cookie: {},
+      },
+    });
+
+    const response = await request(
+      app,
+      "/auth/account/sessions/revoke-current",
+      {
+        method: "POST",
+        body: {},
+        headers: {
+          authorization: "Bearer bearer-token",
+        },
+      },
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toContain("session=;");
+    expect(revokeCurrent).toHaveBeenCalledWith({
+      sessionToken: "bearer-token",
+      now: undefined,
     });
   });
 
@@ -253,6 +387,23 @@ function createTestApp(
   app.use("/auth", createUniAuthExpressRouter(options));
 
   return app;
+}
+
+async function expectSafeSessionResponse(response: Response): Promise<void> {
+  expect(await response.json()).toEqual({
+    session: {
+      id: "session-record",
+      status: "active",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-02T00:00:00.000Z",
+      lastSeenAt: "2026-01-01T00:00:00.000Z",
+    },
+    user: {
+      id: "user-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  });
 }
 
 async function request(
@@ -285,6 +436,7 @@ async function request(
 function createAuthService(
   overrides: {
     readonly context?: unknown;
+    readonly revokeCurrent?: unknown;
     readonly signIn?: unknown;
   } = {},
 ): UniAuthExpressService {
@@ -294,7 +446,11 @@ function createAuthService(
         signIn: overrides.signIn ?? vi.fn(),
       },
     },
-    account: {},
+    account: {
+      sessions: {
+        revokeCurrent: overrides.revokeCurrent ?? vi.fn(),
+      },
+    },
     admin: {
       sessions: {
         context: overrides.context ?? vi.fn(),
